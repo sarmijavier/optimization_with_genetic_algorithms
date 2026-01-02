@@ -14,6 +14,9 @@ class GeneticAlgorithm:
         MUTATION_RATE = 0.06,
         ELITISM_SIZE = 3,
         TOURNAMENT_SIZE = 3,
+        SELECTION_METHOD = 'tournament',
+        CROSSOVER_METHOD = 'uniform'
+        MUTATE_METHOD = 'independent'
     ):
         self.filename = filename
         # This is our k parameter, to choose the min num of colors 
@@ -25,6 +28,9 @@ class GeneticAlgorithm:
         self.MUTATION_RATE = MUTATION_RATE
         self.ELITISM_SIZE = ELITISM_SIZE
         self.TOURNAMENT_SIZE = TOURNAMENT_SIZE
+        self.SELECTION_METHOD = SELECTION_METHOD
+        self.CROSSOVER_METHOD = CROSSOVER_METHOD
+        self.MUTATE_METHOD = MUTATE_METHOD
         
         self.NUM_VERTICES = 0 # default value
         self.edges = 0 # default value
@@ -67,20 +73,92 @@ class GeneticAlgorithm:
     # checks is a solution is fulfilled
     def count_conflicts(self, individual):
         return sum(1 for u, v in self.edges if individual[u] == individual[v])
-
     
     def fitness(self, individual):
         return 1 / (1 + self.count_conflicts(individual))
 
+    #########
+    # SELECTION METHODS
+    def roulette_wheel_selection(self, population, fitness_values):
+        scores = self.fitness_to_score(fitness_values)
+        total_score = sum(scores)
     
+        pick = random.uniform(0, total_score)
+        current = 0.0
+    
+        for individual, score in zip(population, scores):
+            current += score
+            if current >= pick:
+                return individual
+    
+
+    def rank_selection(self, population, fitness_values):
+        # Sort by fitness (ascending = best first)
+        sorted_pop = sorted(
+            zip(population, fitness_values),
+            key=lambda x: x[1]
+        )
+    
+        n = len(sorted_pop)
+        ranks = list(range(n, 0, -1))  # best gets highest rank
+        total_rank = sum(ranks)
+    
+        pick = random.uniform(0, total_rank)
+        current = 0
+    
+        for (individual, _), rank in zip(sorted_pop, ranks):
+            current += rank
+            if current >= pick:
+                return individual
+
+    def fitness_to_score(self, fitness_values):
+        max_f = max(fitness_values)
+        return [(max_f - f) + 1e-6 for f in fitness_values]
+    
+    def stochastic_universal_sampling(self, population, fitness_values, num_parents):
+        scores = self.fitness_to_score(fitness_values)
+        total_score = sum(scores)
+        step = total_score / num_parents
+        start = random.uniform(0, step)
+    
+        points = [start + i * step for i in range(num_parents)]
+    
+        parents = []
+        cumulative = 0.0
+        i = 0
+    
+        for individual, score in zip(population, scores):
+            cumulative += score
+            while i < num_parents and cumulative >= points[i]:
+                parents.append(individual)
+                i += 1
+    
+        return parents
+
+        
     def tournament_selection(self, population):
         return max(
             random.sample(population, self.TOURNAMENT_SIZE),
             key=self.fitness
         )
 
+                
+    def selection_schemes(self, population, fitness_values):
+        if self.SELECTION_METHOD == "roulette":
+            return self.roulette_wheel_selection(population, fitness_values)
+        elif self.SELECTION_METHOD == "rank":
+            return self.rank_selection(population, fitness_values)
+        elif self.SELECTION_METHOD == "sus":
+            return self.stochastic_universal_sampling(population, fitness_values, 1)[0]
+        elif self.SELECTION_METHOD == 'tournament':
+            return self.tournament_selection(population)
+        else:
+            print('Invalid selection method')
+
+    #########
+    # CROSSOVER METHODS
     
-    def crossover(self, p1, p2):
+    def uniform_crossover(self, p1, p2):
         c1, c2 = [], []
         for g1, g2 in zip(p1, p2):
             if random.random() < 0.5:
@@ -91,14 +169,72 @@ class GeneticAlgorithm:
                 c2.append(g1)
         return c1, c2
 
+
+    def two_point_crossover(self, p1, p2):
+        n = len(p1)
+        p1_idx, p2_idx = sorted(random.sample(range(n), 2))
     
-    def mutation(self, individual):
+        child1 = (
+            p1[:p1_idx]
+            + p2[p1_idx:p2_idx]
+            + p1[p2_idx:]
+        )
+    
+        child2 = (
+            p2[:p1_idx]
+            + p1[p1_idx:p2_idx]
+            + p2[p2_idx:]
+        )
+    
+        return child1, child2
+    
+    def crossover(self, p1, p2):
+        if self.CROSSOVER_METHOD == "two_point":
+            return two_point_crossover(p1, p2)
+        elif self.CROSSOVER_METHOD == "uniform":
+            return uniform_crossover(p1, p2)
+        else:
+            raise ValueError("Invalid crossover method")
+
+    #########
+    # MUTATION METHODS
+    def mutate_one_gene(self, chromosome):
+        """
+        Always mutates exactly one gene (node).
+        """
+        n = len(chromosome)
+        i = random.randrange(n)
+    
+        old_color = chromosome[i]
+        new_color = random.choice([c for c in range(self.NUM_COLORS) if c != old_color])
+    
+        chromosome[i] = new_color
+        return chromosome
+        
+    def mutate_independent(self, chromosome):
         for i in range(self.NUM_VERTICES):
             if random.random() < self.MUTATION_RATE:
-                individual[i] = random.randint(0, self.NUM_COLORS - 1)
-        return individual
+                old_color = chromosome[i]
+                chromosome[i] = random.choice(
+                    [c for c in range(self.NUM_COLORS) if c != old_color]
+                )
+        return chromosome
+        
+    def mutate(self, chromosome):
+        if self.MUTATE_METHOD == "one":
+            self.mutate_one_gene(chromosome)
+        elif self.MUTATE_METHOD == "independent":
+            sellf.mutate_independent(chromosome)
+        else:
+            raise ValueError("Invalid mutation method")
 
-
+    def compute_fitness(self, individual, edges):
+        conflicts = 0
+        for u, v in edges:
+            if individual[u] == individual[v]:
+                conflicts += 1
+        return conflicts
+    
     # draw graph using networkx
     def build_nx_graph(self):
         G = nx.Graph()
@@ -141,14 +277,19 @@ class GeneticAlgorithm:
     
         for generation in range(self.GENERATIONS):
             new_population = []
+
+            fitness_values = [
+                self.compute_fitness(individual, self.edges)
+                for individual in population
+            ]
     
             for _ in range(self.POPULATION_SIZE // 2):
-                p1 = self.tournament_selection(population)
-                p2 = self.tournament_selection(population)
+                p1 = self.selection_schemes(population, fitness_values)
+                p2 = self.selection_schemes(population, fitness_values)
     
                 c1, c2 = self.crossover(p1, p2)
-                c1 = self.mutation(c1)
-                c2 = self.mutation(c2)
+                c1 = self.mutate(c1)
+                c2 = self.mutate(c2)
     
                 new_population.extend([c1, c2])
     
