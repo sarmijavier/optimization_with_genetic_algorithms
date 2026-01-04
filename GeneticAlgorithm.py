@@ -18,8 +18,10 @@ class GeneticAlgorithm:
         SELECTION_METHOD = 'tournament',
         CROSSOVER_METHOD = 'uniform',
         MUTATE_METHOD = 'independent',
+        STOP_AUTOMATICALLY = False,
     ):
         self.filename = filename
+        self.STOP_AUTOMATICALLY = STOP_AUTOMATICALLY
         # This is our k parameter, to choose the min num of colors 
         self.NUM_COLORS = NUM_COLORS        
 
@@ -67,9 +69,9 @@ class GeneticAlgorithm:
         self.edges = edges
         
         
-    def initialize_population(self, num_colors):
+    def initialize_population(self):
         return [
-            [random.randint(0, num_colors - 1) for _ in range(self.NUM_VERTICES)]
+            [random.randint(0, self.NUM_COLORS - 1) for _ in range(self.NUM_VERTICES)]
             for _ in range(self.POPULATION_SIZE)
         ]
 
@@ -303,7 +305,7 @@ class GeneticAlgorithm:
         start_time = time.time()
         
         self.read_col_file()
-        population = self.initialize_population(self.NUM_COLORS)
+        population = self.initialize_population()
 
     
         
@@ -320,7 +322,9 @@ class GeneticAlgorithm:
                 'MUTATE_METHOD': self.MUTATE_METHOD,
             }
         ]
-        
+        conflicts_check = 0
+        count_same_conflicts = 0
+            
         for generation in range(self.GENERATIONS):
             new_population = []
 
@@ -347,7 +351,7 @@ class GeneticAlgorithm:
             population = new_population
             best = max(population, key=self.fitness)
             conflicts = self.count_conflicts(best)
-
+ 
             self.generations_conflicts.append([generation, conflicts])
             if conflicts == 0:
                 print(f"Valid coloring found at generation {generation}")
@@ -370,13 +374,27 @@ class GeneticAlgorithm:
                 return data
     
             if generation % 50 == 0:
+                if conflicts == conflicts_check:
+                    count_same_conflicts += 1
+                else:
+                    count_same_conflicts = 0
+                    
                 print(f"Gen {generation}: best conflicts = {conflicts}")
+                conflicts_check = conflicts
+
+            #LIMIT to stop and continue with the following if the 
+            if self.STOP_AUTOMATICALLY and count_same_conflicts == 10:
+                print('Stop, no evolution')
+                break
                 
         self.solution = max(population, key=self.fitness)
         end_time = time.time()
         self.elapsed_time = end_time - start_time
         data.append('NO_SOLUTION')
         data.append(self.NUM_COLORS)
+        data.append(self.NUM_COLORS)
         data.append(conflicts)
         data.append(generation)
+        data.append(self.generations_conflicts)
+        data.append(best)
         return data
