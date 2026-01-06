@@ -307,8 +307,6 @@ class GeneticAlgorithm:
         self.read_col_file()
         population = self.initialize_population()
 
-    
-        
         data = [
             {
                 'filename': self.filename,
@@ -382,7 +380,7 @@ class GeneticAlgorithm:
                 print(f"Gen {generation}: best conflicts = {conflicts}")
                 conflicts_check = conflicts
 
-            #LIMIT to stop and continue with the following if the 
+            #LIMIT to stop and continue with the following if the number of conflicts is stuck
             if self.STOP_AUTOMATICALLY and count_same_conflicts == 10:
                 print('Stop, no evolution')
                 break
@@ -390,8 +388,7 @@ class GeneticAlgorithm:
         self.solution = max(population, key=self.fitness)
         end_time = time.time()
         self.elapsed_time = end_time - start_time
-        data.append('NO_SOLUTION')
-        data.append(self.NUM_COLORS)
+        data.append(self.elapsed_time)
         data.append(self.NUM_COLORS)
         data.append(conflicts)
         data.append(generation)
