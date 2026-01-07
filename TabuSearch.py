@@ -115,22 +115,29 @@ class TabuSearch:
         if not self.conflict_history:
             print("No data to plot.")
             return
-    
+
         # 1. Extract data
-        gens, confs = zip(*self.conflict_history)
-    
+        iters, confs = zip(*self.conflict_history)
+   
         # 2. Create the plot
-        plt.style.use('seaborn-v0_8-darkgrid') # Optional: makes it look modern
+        plt.style.use('seaborn-v0_8-darkgrid')  # Optional: modern look
         fig, ax = plt.subplots()
-        
-        ax.plot(gens, confs, label='Energy (Number of Conflicts)', linewidth=2)
-        
-        # 3. Add details    
-        ax.set_title('Simulated Annealing Convergence', fontsize=14)
+    
+        ax.plot(
+            iters,
+            confs,
+            label='Energy (Number of Conflicts)',
+            linewidth=2
+        )
+    
+        # 3. Add details
+        ax.set_title('Tabu Search Convergence', fontsize=14)
         ax.set_xlabel('Iteration')
         ax.set_ylabel('Energy (Conflicts)')
         ax.legend()
+    
         plt.show()
+
         
     def tabu_search(self):
         start_time = time.time()
